@@ -38,6 +38,7 @@ public class ParticleEffect implements Disposable {
 	private final Array<ParticleEmitter> emitters;
 	private BoundingBox bounds;
 	private boolean ownsTexture;
+	protected float sizeScale = 1f, motionScale = 1f;
 
 	public ParticleEffect () {
 		emitters = new Array(8);
@@ -46,7 +47,7 @@ public class ParticleEffect implements Disposable {
 	public ParticleEffect (ParticleEffect effect) {
 		emitters = new Array(true, effect.emitters.size);
 		for (int i = 0, n = effect.emitters.size; i < n; i++)
-			emitters.add(new ParticleEmitter(effect.emitters.get(i)));
+			emitters.add(newEmitter(effect.emitters.get(i)));
 	}
 
 	public void start () {
@@ -54,9 +55,22 @@ public class ParticleEffect implements Disposable {
 			emitters.get(i).start();
 	}
 
+	/** Resets the effect so it can be started again like a new effect. Any changes to 
+	 * scale are reverted. See {@link #reset(boolean)}.*/
 	public void reset () {
+		reset(true);
+	}
+	
+	/** Resets the effect so it can be started again like a new effect.
+	 * @param resetScaling Whether to restore the original size and motion parameters if they were scaled. Repeated scaling
+	 * and resetting may introduce error. */
+	public void reset (boolean resetScaling){
 		for (int i = 0, n = emitters.size; i < n; i++)
 			emitters.get(i).reset();
+		if (resetScaling && (sizeScale != 1f || motionScale != 1f)){
+			scaleEffect(1f / sizeScale, 1f / motionScale);
+			sizeScale = motionScale = 1f;
+		}
 	}
 
 	public void update (float delta) {
@@ -154,7 +168,7 @@ public class ParticleEffect implements Disposable {
 		try {
 			reader = new BufferedReader(new InputStreamReader(input), 512);
 			while (true) {
-				ParticleEmitter emitter = new ParticleEmitter(reader);
+				ParticleEmitter emitter = newEmitter(reader);
 				emitters.add(emitter);
 				if (reader.readLine() == null) break;
 				if (reader.readLine() == null) break;
@@ -202,6 +216,14 @@ public class ParticleEffect implements Disposable {
 		}
 	}
 
+	protected ParticleEmitter newEmitter (BufferedReader reader) throws IOException {
+		return new ParticleEmitter(reader);
+	}
+
+	protected ParticleEmitter newEmitter (ParticleEmitter emitter) {
+		return new ParticleEmitter(emitter);
+	}
+
 	protected Texture loadTexture (FileHandle file) {
 		return new Texture(file, false);
 	}
@@ -226,43 +248,20 @@ public class ParticleEffect implements Disposable {
 		return bounds;
 	}
 
+	/** Permanently scales all the size and motion parameters of all the emitters in this effect. If this effect originated from a
+	 * {@link ParticleEffectPool}, the scale will be reset when it is returned to the pool. */
 	public void scaleEffect (float scaleFactor) {
+		scaleEffect(scaleFactor, scaleFactor);
+	}
+
+	/** Permanently scales all the size and motion parameters of all the emitters in this effect. If this effect originated from a
+	 * {@link ParticleEffectPool}, the scale will be reset when it is returned to the pool. */
+	public void scaleEffect (float sizeScaleFactor, float motionScaleFactor) {
+		sizeScale *= sizeScaleFactor;
+		motionScale *= motionScaleFactor;
 		for (ParticleEmitter particleEmitter : emitters) {
-			particleEmitter.getScale().setHigh(particleEmitter.getScale().getHighMin() * scaleFactor,
-				particleEmitter.getScale().getHighMax() * scaleFactor);
-			particleEmitter.getScale().setLow(particleEmitter.getScale().getLowMin() * scaleFactor,
-				particleEmitter.getScale().getLowMax() * scaleFactor);
-
-			particleEmitter.getVelocity().setHigh(particleEmitter.getVelocity().getHighMin() * scaleFactor,
-				particleEmitter.getVelocity().getHighMax() * scaleFactor);
-			particleEmitter.getVelocity().setLow(particleEmitter.getVelocity().getLowMin() * scaleFactor,
-				particleEmitter.getVelocity().getLowMax() * scaleFactor);
-
-			particleEmitter.getGravity().setHigh(particleEmitter.getGravity().getHighMin() * scaleFactor,
-				particleEmitter.getGravity().getHighMax() * scaleFactor);
-			particleEmitter.getGravity().setLow(particleEmitter.getGravity().getLowMin() * scaleFactor,
-				particleEmitter.getGravity().getLowMax() * scaleFactor);
-
-			particleEmitter.getWind().setHigh(particleEmitter.getWind().getHighMin() * scaleFactor,
-				particleEmitter.getWind().getHighMax() * scaleFactor);
-			particleEmitter.getWind().setLow(particleEmitter.getWind().getLowMin() * scaleFactor,
-				particleEmitter.getWind().getLowMax() * scaleFactor);
-
-			particleEmitter.getSpawnWidth().setHigh(particleEmitter.getSpawnWidth().getHighMin() * scaleFactor,
-				particleEmitter.getSpawnWidth().getHighMax() * scaleFactor);
-			particleEmitter.getSpawnWidth().setLow(particleEmitter.getSpawnWidth().getLowMin() * scaleFactor,
-				particleEmitter.getSpawnWidth().getLowMax() * scaleFactor);
-
-			particleEmitter.getSpawnHeight().setHigh(particleEmitter.getSpawnHeight().getHighMin() * scaleFactor,
-				particleEmitter.getSpawnHeight().getHighMax() * scaleFactor);
-			particleEmitter.getSpawnHeight().setLow(particleEmitter.getSpawnHeight().getLowMin() * scaleFactor,
-				particleEmitter.getSpawnHeight().getLowMax() * scaleFactor);
-
-			particleEmitter.getXOffsetValue().setLow(particleEmitter.getXOffsetValue().getLowMin() * scaleFactor,
-				particleEmitter.getXOffsetValue().getLowMax() * scaleFactor);
-
-			particleEmitter.getYOffsetValue().setLow(particleEmitter.getYOffsetValue().getLowMin() * scaleFactor,
-				particleEmitter.getYOffsetValue().getLowMax() * scaleFactor);
+			particleEmitter.scaleSize(sizeScaleFactor);
+			particleEmitter.scaleMotion(motionScaleFactor);
 		}
 	}
 
